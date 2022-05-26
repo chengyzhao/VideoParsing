@@ -1,0 +1,7 @@
+video_path: './video_input/test00.mp4'
+save_path: './output/'
+exp_name: 'test00'
+
+pretrain_path: './pretrained/bytetrack_model.pth.tar'
+device: 'gpu' # or 'cpu'
+
