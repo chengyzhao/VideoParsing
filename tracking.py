@@ -97,12 +97,12 @@ def video_inference(predictor, output_folder, save_name, video_path, exp, args):
 
 
 class Tracker(object):
-    def __init__(self, device, pretrain_path, args):
-        self.args = args
+    def __init__(self, device, pretrain_path):
+        self.args = Defaults()
         self.exp = Exp()
         self.device = device
-        self.model = self._get_model(pretrain_path, args)
-        self.predictor = self._get_predictor(args)
+        self.model = self._get_model(pretrain_path, self.args)
+        self.predictor = self._get_predictor(self.args)
 
     def _get_model(self, pretrain_path, args):
         model = self.exp.get_model().to(self.device)
@@ -142,7 +142,6 @@ if __name__ == "__main__":
     output_dir = osp.join(cfg['save_path'], cfg['exp_name'])
     os.makedirs(output_dir, exist_ok=True)
 
-    args = Defaults()
-    tracker = Tracker(cfg['device'], cfg['pretrain_path'], args)
+    tracker = Tracker(cfg['device'], cfg['pretrain_path'])
 
     tracker.inference(cfg['video_path'], cfg['save_path'], cfg['exp_name'])

@@ -5,3 +5,10 @@ exp_name: 'test00'
 pretrain_path: './pretrained/bytetrack_model.pth.tar'
 device: 'gpu' # or 'cpu'
 
+output:
+  height: 300
+  width: 150
+  fps: -1
+  min_frames: 300
+  ratio: 0.8
+  keep_original: False
