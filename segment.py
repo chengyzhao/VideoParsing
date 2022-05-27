@@ -72,7 +72,7 @@ def get_candidate_segments(frame2inst, min_frames=2000):
 
 
 # TODO from tight bbox to output bbox
-def get_output_box(src_box, output_width, output_height, add_cfg):
+def get_output_box(src_box, img_height, img_width, output_width, output_height, add_cfg):
     assert output_height > output_width, f"Output height {output_height} should greater than output width {output_width}"
 
     xmin, ymin, width, height = src_box
@@ -83,6 +83,14 @@ def get_output_box(src_box, output_width, output_height, add_cfg):
     if (height / width) >= (output_height / output_width):
         new_height = height / ratio
         new_width = new_height / output_height * output_width
+
+        new_height = min(min(y_center, img_height - y_center) * 2, new_height)
+        new_width = min(min(x_center, img_width - x_center) * 2, new_width)
+        if new_height / output_height * output_width > new_width:
+            new_height = new_width / output_width * output_height
+        else:
+            new_width = new_height / output_height * output_width
+
         new_ymin = y_center - new_height / 2
         new_xmin = x_center - new_width / 2
         new_ymin = max(new_ymin, 0)
@@ -90,6 +98,14 @@ def get_output_box(src_box, output_width, output_height, add_cfg):
     else:
         new_width = width / ratio
         new_height = new_width / output_width * output_height
+
+        new_height = min(min(y_center, img_height - y_center) * 2, new_height)
+        new_width = min(min(x_center, img_width - x_center) * 2, new_width)
+        if new_height / output_height * output_width > new_width:
+            new_height = new_width / output_width * output_height
+        else:
+            new_width = new_height / output_height * output_width
+
         new_xmin = x_center - new_width / 2
         new_ymin = y_center - new_height / 2
         new_ymin = max(new_ymin, 0)
@@ -108,7 +124,8 @@ def segment_video(src_audio_path, src_images_path, inst2bbox, segment, output_di
         xmin, ymin, width, height, _ = inst2bbox[inst_id][frame_id]
         frame_path = osp.join(src_images_path, "{}.jpg".format(str(frame_id).zfill(8)))
         frame = cv2.imread(frame_path)
-        output_bbox = get_output_box((xmin, ymin, width, height), new_cfg['width'], new_cfg['height'], new_cfg)
+        output_bbox = get_output_box((xmin, ymin, width, height), frame.shape[0], frame.shape[1], new_cfg['width'],
+                                     new_cfg['height'], new_cfg)
         xmin, ymin, width, height = output_bbox
 
         if keep_original:
@@ -137,9 +154,9 @@ if __name__ == "__main__":
     output_dir = osp.join(cfg['save_path'], cfg['exp_name'])
     os.makedirs(output_dir, exist_ok=True)
 
-    # tracker = Tracker(cfg['device'], cfg['pretrain_path'])
+    tracker = Tracker(cfg['device'], cfg['pretrain_path'])
 
-    # tracker.inference(cfg['video_path'], cfg['save_path'], cfg['exp_name'])
+    tracker.inference(cfg['video_path'], cfg['save_path'], cfg['exp_name'])
 
     pred_txt = osp.join(cfg['save_path'], cfg['exp_name'], f"{cfg['exp_name']}.txt")
     frame2inst, inst2bbox = get_frame_preds(pred_txt)
