@@ -2,6 +2,8 @@ tracking codes from ByteTrack [https://github.com/ifzhang/ByteTrack.git]
 
 pretrained model from DanceTrack [https://github.com/DanceTrack/DanceTrack/tree/main/ByteTrack]
 
+*download the pretrained model bytetrack_model.pth.tar, move it into ./pretrained/*
+
 ## Tracker Installation
 ### Installing on the host machine
 Step1. Install ByteTrack.
@@ -26,3 +28,9 @@ Step3. Others
 pip install cython_bbox
 ```
 
+## Using
+modify configs in config.yaml, then run
+
+```shell
+python segment.py
+```

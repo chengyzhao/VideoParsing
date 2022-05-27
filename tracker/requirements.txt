@@ -23,3 +23,6 @@ onnx-simplifier==0.3.5
 
 yapf
 PyYAML
+ffmpeg
+moviepy
+pydub
