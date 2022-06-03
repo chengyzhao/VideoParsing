@@ -3,7 +3,7 @@ save_path: './output/'
 exp_name: '5'
 
 pretrain_path: './pretrained/bytetrack_model.pth.tar'
-device: 'cpu' # or 'cpu'
+device: 'gpu' # or 'cpu'
 
 output:
   height: -1
