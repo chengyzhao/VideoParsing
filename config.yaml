@@ -1,14 +1,16 @@
-video_path: './video_input/test00.mp4'
+video_path: './video_input/5.mp4'
 save_path: './output/'
-exp_name: 'test00'
+exp_name: '5'
 
 pretrain_path: './pretrained/bytetrack_model.pth.tar'
-device: 'gpu' # or 'cpu'
+device: 'cpu' # or 'cpu'
 
 output:
-  height: 300
-  width: 150
+  height: -1
+  width: -1
   fps: -1
-  min_frames: 300
+  min_frames: 100
   ratio: 0.8
   keep_original: False
+
+aspect_ratio: 0.5625
