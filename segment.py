@@ -4,7 +4,7 @@ import cv2
 import torch
 import yaml
 import moviepy.editor as mp
-
+from tqdm import tqdm
 from loguru import logger
 
 from tracking import Tracker
@@ -38,14 +38,6 @@ def get_frame_preds(output_txt_path):
     return frame2inst, inst2bbox
 
 
-# TODO parse instance ids, do same person - different instance id - matching
-# TODO parse bboxs, if one inst id is missing in a few frames
-def parsing(frame2inst, inst2bbox):
-    pass
-
-    return frame2inst, inst2bbox
-
-
 def get_candidate_segments(frame2inst, min_frames=2000):
     inst2segment = {}
     for frame_id in sorted(frame2inst.keys()):
@@ -71,7 +63,6 @@ def get_candidate_segments(frame2inst, min_frames=2000):
     return candidate_segments
 
 
-# TODO from tight bbox to output bbox
 def get_output_box(src_box, img_height, img_width, output_width, output_height, add_cfg):
     assert output_height > output_width, f"Output height {output_height} should greater than output width {output_width}"
 
@@ -113,6 +104,8 @@ def get_output_box(src_box, img_height, img_width, output_width, output_height, 
 
     return (new_xmin, new_ymin, new_width, new_height)
 
+def compute_midx(xmin, width):
+    return int(xmin+width/2)
 
 def segment_video(src_audio_path, src_images_path, inst2bbox, segment, output_dir, exp_name, new_cfg, keep_original):
     inst_id, start_frame, end_frame, length = segment
@@ -120,21 +113,24 @@ def segment_video(src_audio_path, src_images_path, inst2bbox, segment, output_di
     img_save_path = osp.join(output_dir, exp_name, save_name)
     os.makedirs(img_save_path, exist_ok=True)
 
-    for frame_id in range(start_frame, end_frame + 1):
-        xmin, ymin, width, height, _ = inst2bbox[inst_id][frame_id]
+    for frame_id in tqdm(range(start_frame, end_frame + 1)):
         frame_path = osp.join(src_images_path, "{}.jpg".format(str(frame_id).zfill(8)))
         frame = cv2.imread(frame_path)
-        output_bbox = get_output_box((xmin, ymin, width, height), frame.shape[0], frame.shape[1], new_cfg['width'],
-                                     new_cfg['height'], new_cfg)
-        xmin, ymin, width, height = output_bbox
 
-        if keep_original:
-            new_img = cv2.rectangle(frame, (int(xmin), int(ymin)), (int(xmin + width), int(ymin + height)), (0, 0, 255),
-                                    thickness=2)
-        else:
-            new_img = cv2.resize(frame[int(ymin):int(ymin + height),
-                                       int(xmin):int(xmin + width)], (new_cfg['width'], new_cfg['height']),
-                                 interpolation=cv2.INTER_CUBIC)
+        interp = []
+        for i in range(10):
+            if frame_id - i > start_frame: interp.append(frame_id-i)
+            if frame_id + i < end_frame: interp.append(frame_id+i)
+        
+        # interp
+        interp_candidate = [compute_midx(inst2bbox[inst_id][i][0], inst2bbox[inst_id][i][2]) for i in interp if i in inst2bbox[inst_id]]
+        x = int(sum(interp_candidate)/len(interp_candidate))
+        left = int(x-new_cfg['width']/2)
+        if left < 0: left = 0
+
+        new_img = cv2.resize(frame[0: new_cfg['height'],
+                                    left:new_cfg['width']+left], (new_cfg['width'], new_cfg['height']),
+                                interpolation=cv2.INTER_CUBIC)
 
         cv2.imwrite(osp.join(img_save_path, "{}.jpg".format(str(frame_id).zfill(8))), new_img)
 
@@ -150,7 +146,7 @@ if __name__ == "__main__":
         cfg = yaml.safe_load(fd)
     cfg['device'] = torch.device("cuda" if cfg['device'] == "gpu" else "cpu")
     logger.info("Configs: {}".format(cfg))
-
+    logger.info("aspect_ratio:", cfg['aspect_ratio'])
     output_dir = osp.join(cfg['save_path'], cfg['exp_name'])
     os.makedirs(output_dir, exist_ok=True)
 
@@ -161,16 +157,27 @@ if __name__ == "__main__":
     pred_txt = osp.join(cfg['save_path'], cfg['exp_name'], f"{cfg['exp_name']}.txt")
     frame2inst, inst2bbox = get_frame_preds(pred_txt)
 
-    frame2inst, inst2bbox = parsing(frame2inst, inst2bbox)
-
+    logger.info('get candidate segments...')
     candidate_segments = get_candidate_segments(frame2inst, cfg['output']['min_frames'])
-
+    logger.info('candidates done')
     src_images_path = osp.join(cfg['save_path'], cfg['exp_name'], "src_images")
 
+    
     os.makedirs(src_images_path, exist_ok=True)
-    original_cfg = video2images(cfg['video_path'], src_images_path)
 
+    original_cfg = video2images(cfg['video_path'], src_images_path)
+    
     my_clip = mp.VideoFileClip(cfg['video_path'])
+    cap = cv2.VideoCapture(cfg['video_path'])
+    inputWidth = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    inputHeight = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    inputFrameSize = (inputWidth, inputHeight)
+    outputFrameSize = (int(inputHeight * cfg['aspect_ratio']), inputHeight)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    cfg['output']['width'], cfg['output']['height'] = outputFrameSize
+    original_cfg = {'width': inputWidth, 'height': inputHeight, 'fps': fps}
+    logger.info("width = {}, height = {}".format(cfg['output']['width'], cfg['output']['height']))
+
     src_audio_path = osp.join(cfg['save_path'], cfg['exp_name'], f"{cfg['exp_name']}.wav")
     my_clip.audio.write_audiofile(src_audio_path)
 
@@ -181,7 +188,7 @@ if __name__ == "__main__":
     elif output_cfg['fps'] == -1:
         output_cfg['fps'] = original_cfg['fps']
 
-    for segment in candidate_segments:
+    for idx, segment in enumerate(candidate_segments):
         final_video_path = segment_video(src_audio_path,
                                          src_images_path,
                                          inst2bbox,
@@ -192,6 +199,5 @@ if __name__ == "__main__":
                                          keep_original=keep_original)
 
         print(f"{segment} -> {final_video_path}")
-        break
 
     print('Over!')
